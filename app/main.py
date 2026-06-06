@@ -1,8 +1,16 @@
+from app.stocks import stocks
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import yfinance as yf
 import pandas as pd
 import numpy as np
+import pandas as pd
+#from app.stocks import stocks
+
+df = pd.read_csv(
+    "app/stocks.csv",
+    dtype=str
+)
 
 app = FastAPI()
 
@@ -14,6 +22,36 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/api/search")
+def search_stock(q: str):
+
+    result = df[
+        df["name"].str.contains(
+            q,
+            case=False,
+            na=False
+        )
+        |
+        df["code"].str.contains(
+            q,
+            na=False
+        )
+        |
+        df["alias"].str.contains(
+            q,
+            case=False,
+            na=False
+        )
+    ]
+
+    return (
+        result
+        .head(10)
+        .to_dict(
+            orient="records"
+        )
+    )
 
 @app.get("/api/stock/{stock_id}")
 def get_stock_data(stock_id: str):
