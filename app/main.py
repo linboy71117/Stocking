@@ -4,12 +4,19 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 
+# =========================
 # 股票資料庫
+# =========================
 stock_df = pd.read_csv(
     "app/stocks.csv",
     dtype=str
 )
 
+stock_df = stock_df.fillna("")
+
+# =========================
+# FastAPI
+# =========================
 app = FastAPI()
 
 app.add_middleware(
@@ -52,14 +59,16 @@ def search_stock(q: str):
     )
 
 # =========================
-# 取得股票K線資料
+# 股票K線
 # =========================
 @app.get("/api/stock/{stock_id}")
-def get_stock_data(stock_id: str):
+def get_stock_data(
+    stock_id: str,
+    period: str = "3mo"
+):
 
     try:
 
-        # 找中文名稱
         stock_name = stock_id
 
         match = stock_df[
@@ -71,7 +80,6 @@ def get_stock_data(stock_id: str):
         if not match.empty:
             stock_name = match.iloc[0]["name"]
 
-        # 台股自動加 .TW
         ticker = (
             f"{stock_id}.TW"
             if stock_id.isdigit()
@@ -80,17 +88,65 @@ def get_stock_data(stock_id: str):
 
         stock = yf.Ticker(ticker)
 
-        df = stock.history(
-            period="3mo"
-        )
+        # =========================
+        # 依時間區間抓資料
+        # =========================
+
+        if period == "1mo":
+
+            df = stock.history(
+                period="1mo"
+            )
+
+        elif period == "3mo":
+
+            df = stock.history(
+                period="3mo"
+            )
+
+        elif period == "6mo":
+
+            df = stock.history(
+                period="6mo"
+            )
+
+        elif period == "1y":
+
+            df = stock.history(
+                period="1y"
+            )
+
+        elif period == "5y":
+
+            df = stock.history(
+                period="5y",
+                interval="1wk"
+            )
+
+        elif period == "max":
+
+            df = stock.history(
+                period="max",
+                interval="1mo"
+            )
+
+        else:
+
+            df = stock.history(
+                period="3mo"
+            )
 
         if df.empty:
+
             return {
                 "status": "error",
                 "message": f"找不到股票代碼: {ticker}"
             }
 
+        # =========================
         # 均線
+        # =========================
+
         df["MA5"] = (
             df["Close"]
             .rolling(window=5)
@@ -103,7 +159,6 @@ def get_stock_data(stock_id: str):
             .mean()
         )
 
-        # NaN處理
         df = df.replace({
             np.nan: None,
             np.inf: None,
@@ -136,12 +191,14 @@ def get_stock_data(stock_id: str):
             ])
 
             if row["MA5"] is not None:
+
                 ma5_data.append([
                     timestamp,
                     round(float(row["MA5"]), 2)
                 ])
 
             if row["MA20"] is not None:
+
                 ma20_data.append([
                     timestamp,
                     round(float(row["MA20"]), 2)
@@ -151,6 +208,8 @@ def get_stock_data(stock_id: str):
             "status": "success",
             "stock_id": stock_id,
             "stock_name": stock_name,
+            "period": period,
+            "count": len(chart_data),
             "candlestick": chart_data,
             "ma5": ma5_data,
             "ma20": ma20_data
@@ -160,6 +219,5 @@ def get_stock_data(stock_id: str):
 
         return {
             "status": "error",
-            "message": f"後端計算錯誤: {str(e)}"
+            "message": str(e)
         }
-

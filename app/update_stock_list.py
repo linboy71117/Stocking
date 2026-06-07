@@ -28,6 +28,7 @@ stocks = [
 ["META","Meta","臉書","US"],
 ["AMZN","Amazon","亞馬遜","US"]
 
+
 ]
 
 df = pd.DataFrame(
