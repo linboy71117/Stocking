@@ -208,8 +208,12 @@ def get_stock_data(
             "status": "success",
             "stock_id": stock_id,
             "stock_name": stock_name,
+
+            "DEBUG_TEST": "LIN_BOYU",
+
             "period": period,
             "count": len(chart_data),
+
             "candlestick": chart_data,
             "ma5": ma5_data,
             "ma20": ma20_data
