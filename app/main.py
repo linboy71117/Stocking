@@ -170,8 +170,74 @@ def get_stock_data(stock_id: str, period: str = "3mo"):
 # =========================
 # AI 推薦分析端點
 # =========================
+# =========================
+# 升級版：動態時間跨度 AI 推薦分析端點
+# =========================
 @app.get("/api/ai_analysis/{stock_id}")
-def get_ai_analysis(stock_id: str):
+def get_ai_analysis(stock_id: str, period: str = "3mo"):
+    """
+    根據前端傳入的 period (1mo, 3mo, 1y, max...)
+    自動調整分析的資料範圍，給出對應時間跨度的專業操盤建議。
+    """
+    try:
+        ticker = f"{stock_id}.TW" if stock_id.isdigit() else stock_id
+        
+        # 加上我們上一波寫的防封鎖 session 裝甲
+        import requests
+        session = requests.Session()
+        session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        })
+        stock = yf.Ticker(ticker, session=session)
+        
+        # 🎯 關鍵：讓 AI 抓取的歷史資料長度與前端完全一致
+        if period in ["1mo", "3mo", "6mo", "1y", "5y", "max"]:
+            df = stock.history(period=period)
+        else:
+            df = stock.history(period="3mo")
+            period = "3mo"
+        
+        if df.empty:
+            return {"status": "error", "analysis": "無法取得足夠的歷史數據進行該區間的 AI 分析。"}
+            
+        current_price = round(df["Close"].iloc[-1], 2)
+        price_change = round(((df["Close"].iloc[-1] - df["Close"].iloc[0]) / df["Close"].iloc[0]) * 100, 2)
+        
+        # 定義時間跨度的中文描述
+        period_names = {
+            "1mo": "【近 1 個月 - 超短線極速分析】",
+            "3mo": "【近 3 個月 - 短線波段策略趨勢】",
+            "6mo": " {stock_id} 【近 半年 - 中期籌碼整理報告】",
+            "1y": "【近 1 年 - 跨年度歷史日線總結】",
+            "5y": "【近 5 年 - 跨越景氣循環週線大布局】",
+            "max": "【過去20年 - 史詩級最大歷史週期總體檢】"
+        }
+        title_tag = period_names.get(period, "【智慧綜合看盤分析】")
+
+        # 根據不同的跨度與漲跌幅，給出截然不同的操盤靈魂
+        if period in ["1mo", "3mo"]:
+            # 短線邏輯：聚焦在動量、爆發力與停損支撐
+            trend = "短線爆發力強勁，動能十足" if price_change > 0 else "短線面臨賣壓宣洩，技術面修正中"
+            strategy = f"對於短線投資者，目前價格波動激烈（區間內漲跌幅 {price_change}%）。建議密切監控 MA5 均線防線，若跌破應果斷嚴格執行停損；若帶量突破前高，可進行極短線順勢加碼。"
+        elif period in ["6mo", "1y"]:
+            # 中線邏輯：聚焦在波段築底、季線半年線支撐與基本面搭配
+            trend = "波段多頭排列，築底完成向上" if price_change > 0 else "中線陷入箱型整理，或處於空頭通道"
+            strategy = f"從中長線波段視角來看，該股近期的核心支撐已經浮現（區間累計報酬率為 {price_change}%）。適合採取『拉回不破底』時分批佈局的策略，耐心等待中期均線黃金交叉的波段行情。"
+        else:
+            # 長線邏輯 (5y, max)：聚焦在20年大歷史循環、公司護城河與資產配置
+            trend = "長期價值持續增長，具備產業護城河" if price_change > 0 else "長期走勢處於大週期循環低谷"
+            strategy = f"這是一份跨越數年週期的史詩級長線體檢報告（大週期報酬率為 {price_change}%）。此時的日常震盪皆為雜訊，長線投資人應關注該股的長期本益比（PE）是否在歷史合理評價區間，適合透過定期定額或價值型長期存股進行配置。"
+
+        analysis_text = f"{title_tag}\n\n" \
+                        f"🤖 該股目前最新收盤價為 {current_price} 元。\n\n" \
+                        f"📊 區間型態觀察：在此時間跨度下，整體走勢呈現『{trend}』。\n\n" \
+                        f"💡 導航大腦建議：{strategy}\n\n" \
+                        f"⚠️ 警示：以上內容為 AI 根據歷史數據與移動平均線之智慧模擬，不代表絕對投資承諾，操作時請務必控管好資金部位。"
+
+        return {"status": "success", "analysis": analysis_text}
+    except Exception as e:
+        return {"status": "error", "analysis": f"AI 分析生成失敗: {str(e)}"}
+
     """
     此處可直接放入大模型 API 串接密碼。
     目前先以精密的邏輯規則引擎，根據股票當前狀態動態生成專業級 AI 股評。
