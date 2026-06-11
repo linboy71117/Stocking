@@ -18,6 +18,8 @@ import requests
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("QuantEngine")
 
+from fastapi_websocket_pubsub import PubSubEndpoint
+
 app = FastAPI(
     title="台股量化交易技術指標分析核心引擎 API",
     description="提供 K 線、高階量化技術指標 (MA, RSI, MACD, KDJ, Bollinger Bands) 及 AI 動態波段策略決策支援",
@@ -118,6 +120,12 @@ class QuantIndicators:
         return df
 
 # ==========================================
+# 🌐 WebSocket 支持
+# ==========================================
+endpoint = PubSubEndpoint()
+app.include_router(endpoint.router, prefix='/ws')
+
+# ==========================================
 # 📡 HTTP 請求防鎖死安全裝甲頭
 # ==========================================
 def get_secure_ticker(stock_id: str) -> yf.Ticker:
@@ -149,7 +157,7 @@ def search_stock(q: str = Query(..., description="請輸入股票代碼、名稱
 # 📈 路由二：超高集成度技術指標主端點 (K線、MA、RSI、MACD、布林、KDJ)
 # ==========================================
 @app.get("/api/stock/{stock_id}", summary="股票完全體技術指標整合數據")
-def get_stock_data(stock_id: str, period: str = "3mo"):
+def get_stock_data(stock_id: str, period: str = "3mo", ma_windows: List[int] = [5, 10, 20, 60, 120], rsi_window: int = 14, macd_fast: int = 12, macd_slow: int = 26, macd_signal: int = 9, bollinger_window: int = 20, bollinger_num_std: float = 2.0):
     try:
         stock_name = stock_id
         match = stock_df[stock_df["code"].str.upper() == stock_id.upper()]
